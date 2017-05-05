@@ -4,6 +4,11 @@
 A geometric optics package for [Julia](julialang.org).
 
 
+## Status
+
+Ray tracing using either Snell's law or the matrix ray transfer method. The matrix ray transfer method implemented here uses the "standard" first order approximation [Hec17]. At present, optical syst consisting of spherical lenses aligned on the optical axis and circular apertures are supported.
+
+
 ## Documentation
 
 Working on it... (really)
@@ -16,3 +21,5 @@ Working on it... (really)
 * Fourier optics
 
 
+## References
+* [Hec17] Hecht, Eugene. _Optics_. Pearson, 5th Edition, 2017.

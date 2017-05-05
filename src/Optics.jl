@@ -114,7 +114,7 @@ type SphericalLens <: Lens
     xmid::Real # lens middle x coord
     yR::Real # y coord of the radius curvature centers (yR1 = yR2 = yR)
     ymin::Real # min y coord
-    ymax::Real # max y coord
+    ymax::Real # max y coord 
 end
 
 
@@ -124,16 +124,7 @@ end
 function SphericalLens(R1::Real, R2::Real, d::Real, nl::Real)::SphericalLens
     (xR1, xR2, xV1, xV2) = sphericalLensVertexDiam(R1, R2, d);
     t = abs(xV1 - xV2);
-    if !isinf(R1)
-        xe1 = -sign(R1)*sqrt(R1^2 - d^2/4) + xR1;
-    else
-        xe1 = xV1;
-    end
-    if !isinf(R2)
-        xe2 = -sign(R2)*sqrt(R2^2 - d^2/4) + xR2;
-    else
-        xe2 = xV2;
-    end
+    (xe1, xe2) = sphericalLensxEdge(R1, R2, d)
     xmin = minimum((xV1, xe1));
     xmax = maximum((xV2, xe2));
     xmid = (xV1 + xV2)/2
@@ -174,11 +165,12 @@ end
 
 """
     SphericalLens(l::SphericalLens)::SphericalLens
+
+Create a copy of a spherical lens l
 """
 function SphericalLens(l::SphericalLens)::SphericalLens
-    lensCopy = SphericalLens(l.R1, l.R2, l.t, l.d, l.nl)
-    return lensCopy
-end
+    return SphericalLens(l.R1, l.R2, l.t, l.d, l.nl)
+end 
 
 
 """
@@ -592,6 +584,26 @@ function sphericalLensMaxDiam(R1::Real, R2::Real, t::Real)
         end
     end
 end # function sphericalLensMaxDiam
+
+
+"""
+    sphericalLensxEdge(R1::Real, R2::Real, d::Real)::Tuple{Real, Real} 
+"""
+function sphericalLensxEdge(R1::Real, R2::Real, d::Real)::Tuple{Real, Real} 
+    (xR1, xR2, xV1, xV2) = sphericalLensVertexDiam(R1, R2, d);
+    t = abs(xV1 - xV2);
+    if !isinf(R1)
+        xe1 = -sign(R1)*sqrt(R1^2 - d^2/4) + xR1;
+    else
+        xe1 = xV1;
+    end
+    if !isinf(R2)
+        xe2 = -sign(R2)*sqrt(R2^2 - d^2/4) + xR2;
+    else
+        xe2 = xV2;
+    end
+    return (xe1, xe2)
+end
 
 
 """
