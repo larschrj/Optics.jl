@@ -142,17 +142,7 @@ function SphericalLens(R1::Real, R2::Real, t::Real, d::Real, nl::Real)::Spherica
     dmax = sphericalLensMaxDiam(R1, R2, t);
     @assert d < dmax "d > dmax = $dmax";
     (xR1, xR2, xV1, xV2) = sphericalLensVertexThick(R1, R2, t);
-
-    if !isinf(R1)
-        xe1 = -sign(R1)*sqrt(R1^2 - d^2/4) + xR1;
-    else
-        xe1 = xV1;
-    end
-    if !isinf(R2)
-        xe2 = -sign(R2)*sqrt(R2^2 - d^2/4) + xR2;
-    else
-        xe2 = xV2;
-    end
+    (xe1, xe2) = sphericalLensxEdge(R1, R2, d)
     xmin = minimum((xV1, xe1));
     xmax = maximum((xV2, xe2));
     xmid = (xV1 + xV2)/2
@@ -1344,7 +1334,7 @@ typealias OpticsSystemMatrix Array{Array{Number,2},1}
 """
 function OpticsSystemMatrix(l::SphericalLens, nm1, nm2)
     A1 = refractMatrix(l.R1, nm1, l.nl)
-    A2 = transferMatrix(l.t, l.nl)
+    A2 = transferMatrix(l.t)
     A3 = refractMatrix(l.R2, l.nl, nm2)
     A = OpticsSystemMatrix([A3, A2, A1]) 
 end
@@ -1360,7 +1350,7 @@ function OpticsSystemMatrix{N<:Number}(os::OpticsSystem, n::Array{N,1})
             if (i < length(os))
                 if isa(os[i + 1], Lens) # not the last optic in system and next optic is a lens
                     M = OpticsSystemMatrix(os[i], n[i], n[i + 1]) # optic matrix
-                    T = transferMatrix(os[i + 1].xV1 - os[i].xV2, n[i + 1]) # transfer matrix to next optic
+                    T = transferMatrix(os[i + 1].xV1 - os[i].xV2) # transfer matrix to next optic
                     prepend!(SM, M)
                     prepend!(SM, [T])
                 end
@@ -1375,9 +1365,20 @@ end
 
 
 """
-    rayMatrix(y::Real, angle::Real, n::Real)::Array{Number} 
+    rayMatrix(y::Real, angle::Real)::Array{Number} 
+
+Creates a ray vector r=[angle, y] for a ray with an angle measured clockwise from the optical axis (in radians) emanating a height y above the optical axis
+
+# Example
+```jldoctest
+julia> rayMatrix(1, pi/8)
+2-element Array{Real,1}:
+ 0.392699
+ 1.0
+
+```
 """
-function rayMatrix(y::Real, angle::Real, n::Real)::Array{Number}
+function rayMatrix(y::Real, angle::Real)::Array{Real}
     #A = [n*angle; y]
     A = [angle; y]
     return A
@@ -1387,21 +1388,45 @@ end
 """
     refractMatrix(R::Real, n1::Real, n2::Real)::Array{Number} 
 
-Refraction matrix for a spherical surface with radius R and indices of refraction n1 and n2 on each side respectively 
+Refraction matrix A for a spherical surface with radius R and indices of refraction n1 and n2 on each side respectively 
+
+A = [n1/n2 -(n2 - n1)/(R*n2); 0 1]
+
+# Example
+```jldoctest
+julia> Optics.refractMatrix(1, 1, 1.5)
+2×2 Array{Number,2}:
+ 0.666667  -0.333333
+ 0.0        1.0
+
+```
 """
 function refractMatrix(R::Real, n1::Real, n2::Real)::Array{Number}
     D = (n2 - n1)/R
-    #A = [1 -D; 0 1]
+    #A = [1 -D; 0 1] # Hecht definition
     A = [n1/n2 -D/n2; 0 1]
     return A
 end
 
 
 """
-    transferMatrix(t::Real, n::Real)::Array{Number}
+    transferMatrix(t::Real)::Array{Number}
+
+Ray transfer matrix for a distance t parallel to the optical axis
+
+A = [1 0; t 1]
+
+# Example
+```jldoctest
+julia> Optics.transferMatrix(0.1)
+2×2 Array{Number,2}:
+ 1.0  0.0
+ 0.1  1.0
+
+```
 """
-function transferMatrix(t::Real, n::Real)::Array{Number}
-    #A = [1 0; t/n 1]
+function transferMatrix(t::Real)::Array{Number}
+    #A = [1 0; t/n 1] # Hecht definition
     A = [1 0; t 1]
     return A
 end
@@ -1409,6 +1434,22 @@ end
 
 """
     opticsSystemfo{T<:Number}(os::OpticsSystem, nm::Array{T,1})
+
+Object (primary) focal length for optics system os with indices of refraction between optics given by nm. Focal length is measured from the primary principal point H1 of the optics system. length(nm) = length(os) + 1.
+
+# Example
+```jldoctest
+julia> l = SphericalLens(1, -1, 1, 1.5)
+Optics.SphericalLens(1,-1,0.2679491924311228,1,1.5,0,0.2679491924311228,1.0,-0.7320508075688772,0.1339745962155614,0.1339745962155614,0.0,0.2679491924311228,0.1339745962155614,0,-0.5,0.5)
+
+julia> os = OpticsSystem([l])
+1-element Array{Optics.Optic,1}:
+ Optics.SphericalLens(1,-1,0.267949,1,1.5,0,0.267949,1.0,-0.732051,0.133975,0.133975,0.0,0.267949,0.133975,0,-0.5,0.5)
+
+julia> Optics.opticsSystemfo(os, [1, 1])
+-1.0467457811220566
+
+```
 """
 function opticsSystemfo{T<:Number}(os::OpticsSystem, nm::Array{T,1})
     A = *(OpticsSystemMatrix(os, nm)...)
@@ -1419,6 +1460,22 @@ end
 
 """
     opticsSystemfi{T<:Number}(os::OpticsSystem, nm::Array{T,1})
+
+Image (secondary) focal length for optics system os with indices of refraction between optics given by nm. Focal length is measured from the secondary principal point H2 of the optics system. length(nm) = length(os) + 1.
+
+# Example
+```jldoctest
+julia> l = SphericalLens(1, -1, 1, 1.5)
+Optics.SphericalLens(1,-1,0.2679491924311228,1,1.5,0,0.2679491924311228,1.0,-0.7320508075688772,0.1339745962155614,0.1339745962155614,0.0,0.2679491924311228,0.1339745962155614,0,-0.5,0.5)
+
+julia> os = OpticsSystem([l])
+1-element Array{Optics.Optic,1}:
+ Optics.SphericalLens(1,-1,0.267949,1,1.5,0,0.267949,1.0,-0.732051,0.133975,0.133975,0.0,0.267949,0.133975,0,-0.5,0.5)
+
+julia> Optics.opticsSystemfi(os, [1, 1])
+1.0467457811220566
+
+```
 """
 function opticsSystemfi{T<:Number}(os::OpticsSystem, nm::Array{T,1})
     A = *(OpticsSystemMatrix(os, nm)...)
@@ -1429,6 +1486,22 @@ end
 
 """
     opticsSystemxV1xH1{T<:Number}(os::OpticsSystem, nm::Array{T,1})
+
+Distance from the first (left most) vertex V1 to the primary principal point H1 of the optics system.
+
+# Example
+```jldoctest
+julia> l = SphericalLens(1, -1, 1, 1.5)
+Optics.SphericalLens(1,-1,0.2679491924311228,1,1.5,0,0.2679491924311228,1.0,-0.7320508075688772,0.1339745962155614,0.1339745962155614,0.0,0.2679491924311228,0.1339745962155614,0,-0.5,0.5)
+
+julia> os = OpticsSystem([l])
+1-element Array{Optics.Optic,1}:
+ Optics.SphericalLens(1,-1,0.267949,1,1.5,0,0.267949,1.0,-0.732051,0.133975,0.133975,0.0,0.267949,0.133975,0,-0.5,0.5)
+
+julia> Optics.opticsSystemxV1xH1(os, [1, 1])
+0.09349156224411338
+
+```
 """
 function opticsSystemxV1xH1{T<:Number}(os::OpticsSystem, nm::Array{T,1})
     A = *(OpticsSystemMatrix(os, nm)...)
@@ -1498,7 +1571,7 @@ function matrixRayTrace{T<:Number}(os::OpticsSystem, nm::Array{T,1}, x0, y0, ang
 
             if (x1, y1) != (nothing, nothing) 
                 # transfer to primary vertex plane
-                ray = transferMatrix(xV1 - xs[end], nm[i])*ray
+                ray = transferMatrix(xV1 - xs[end])*ray
                 push!(xs, x1)
                 push!(ys, ray[2])
                 push!(as, ray[1])
@@ -1512,7 +1585,7 @@ function matrixRayTrace{T<:Number}(os::OpticsSystem, nm::Array{T,1}, x0, y0, ang
                 push!(rays, ray) 
 
                 # transfer from first vertex plane to second vertex plane
-                ray = transferMatrix(xV2 - xV1, o.nl)*ray
+                ray = transferMatrix(xV2 - xV1)*ray
                 (x1, y1) = lineLineIntersect(xs[end], ys[end], as[end], xV2)
                 push!(xs, x1)
                 push!(ys, ray[2])
@@ -1528,14 +1601,14 @@ function matrixRayTrace{T<:Number}(os::OpticsSystem, nm::Array{T,1}, x0, y0, ang
             else
                 # transfer to primary vertex plane
                 (x1, y1) = lineLineIntersect(xs[end], ys[end], as[end], xV1)
-                ray = transferMatrix(xV1 - xs[end], nm[i])*ray
+                ray = transferMatrix(xV1 - xs[end])*ray
                 push!(xs, x1)
                 push!(ys, ray[2])
                 push!(as, ray[1])
                 push!(rays, ray) 
 
                 # transfer to second vertex plane
-                ray = transferMatrix(xV2 - xV1, o.nl)*ray
+                ray = transferMatrix(xV2 - xV1)*ray
                 (x1, y1) = lineLineIntersect(xs[end], ys[end], as[end], xV2)
                 push!(xs, x1)
                 push!(ys, ray[2])
@@ -1554,7 +1627,7 @@ function matrixRayTrace{T<:Number}(os::OpticsSystem, nm::Array{T,1}, x0, y0, ang
     end
 
     # transfer ray to the end
-    ray = transferMatrix(xEnd - xs[end], nm[end])*ray
+    ray = transferMatrix(xEnd - xs[end])*ray
     push!(xs, xEnd)
     push!(ys, ray[2])
     push!(as, ray[1])
