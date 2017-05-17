@@ -142,7 +142,7 @@ function SphericalLens(R1::Real, R2::Real, t::Real, d::Real, nl::Real)::Spherica
     dmax = sphericalLensMaxDiam(R1, R2, t);
     @assert d < dmax "d > dmax = $dmax";
     (xR1, xR2, xV1, xV2) = sphericalLensVertexThick(R1, R2, t);
-    (xe1, xe2) = sphericalLensxEdge(R1, R2, d)
+    (xe1, xe2) = sphericalLensxEdge(R1, R2, d, t)
     xmin = minimum((xV1, xe1));
     xmax = maximum((xV2, xe2));
     xmid = (xV1 + xV2)/2
@@ -581,6 +581,26 @@ end # function sphericalLensMaxDiam
 """
 function sphericalLensxEdge(R1::Real, R2::Real, d::Real)::Tuple{Real, Real} 
     (xR1, xR2, xV1, xV2) = sphericalLensVertexDiam(R1, R2, d);
+    t = abs(xV1 - xV2);
+    if !isinf(R1)
+        xe1 = -sign(R1)*sqrt(R1^2 - d^2/4) + xR1;
+    else
+        xe1 = xV1;
+    end
+    if !isinf(R2)
+        xe2 = -sign(R2)*sqrt(R2^2 - d^2/4) + xR2;
+    else
+        xe2 = xV2;
+    end
+    return (xe1, xe2)
+end
+
+
+"""
+    sphericalLensxEdge(R1::Real, R2::Real, d::Real, t::Real)::Tuple{Real, Real} 
+"""
+function sphericalLensxEdge(R1::Real, R2::Real, d::Real, t::Real)::Tuple{Real, Real} 
+    (xR1, xR2, xV1, xV2) = sphericalLensVertexThick(R1, R2, t);
     t = abs(xV1 - xV2);
     if !isinf(R1)
         xe1 = -sign(R1)*sqrt(R1^2 - d^2/4) + xR1;
