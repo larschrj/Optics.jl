@@ -1575,7 +1575,7 @@ function matrixRayTrace{T<:Number}(os::OpticsSystem, nm::Array{T,1}, x0, y0, ang
     push!(as, angle0)
 
     i = 1
-    ray = rayMatrix(y0, angle0, nm[i])
+    ray = rayMatrix(y0, angle0)
     push!(rays, ray)
     for o in os
         if isa(o, SphericalLens)
