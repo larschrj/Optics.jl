@@ -1361,20 +1361,24 @@ end
 
 
 """
-    OpticsSystemMatrix(Array{os::OpticsSystem, n::Array{Number,1})
+    OpticsSystemMatrix{N<:Number}(os::OpticsSystem, n::Array{N,1})
 """
 function OpticsSystemMatrix{N<:Number}(os::OpticsSystem, n::Array{N,1})
     SM = OpticsSystemMatrix()
-    for i=1:length(os)
+    transferOpticsInd = find([isa(o, Lens) for o=os])
+    lastInd = transferOpticsInd[end]
+    for j=1:length(transferOpticsInd)
+        i = transferOpticsInd[j]
+        if i != lastInd
+            iNext = transferOpticsInd[j+1]
+        end
         if isa(os[i], Lens)
-            if (i < length(os))
-                if isa(os[i + 1], Lens) # not the last optic in system and next optic is a lens
-                    M = OpticsSystemMatrix(os[i], n[i], n[i + 1]) # optic matrix
-                    T = transferMatrix(os[i + 1].xV1 - os[i].xV2) # transfer matrix to next optic
-                    prepend!(SM, M)
-                    prepend!(SM, [T])
-                end
-            elseif (i == length(os)) # last optic in system
+            if (i != lastInd) # not the last optic in system
+                M = OpticsSystemMatrix(os[i], n[i], n[i + 1]) # optic matrix
+                T = transferMatrix(os[iNext].xV1 - os[i].xV2) # transfer matrix to next optic
+                prepend!(SM, M)
+                prepend!(SM, [T])
+            elseif (i == lastInd) # last optic in system
                 M = OpticsSystemMatrix(os[i], n[i], n[i + 1]) # optic matrix
                 prepend!(SM, M)
             end
